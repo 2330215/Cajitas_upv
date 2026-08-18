@@ -1,0 +1,20 @@
+[
+  {
+    "id": "12345",
+    "name": "Juan Pérez",
+    "team": "Equipo 1",
+    "role": "Estudiante"
+  },
+  {
+    "id": "ABCDE123",
+    "name": "María Gómez",
+    "team": "Equipo 2",
+    "role": "Estudiante"
+  },
+  {
+    "id": "54321",
+    "name": "Carlos Ruiz",
+    "team": "Equipo 3",
+    "role": "Profesor"
+  }
+]

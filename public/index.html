@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de Asistencia IoT - ESP32</title>
+  
+  <!-- Google Fonts: Outfit & Space Grotesk -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Socket.io client -->
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="dark-theme">
+
+  <!-- Background Ambient Glows -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
+  <div class="app-container">
+    
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="logo-area">
+        <div class="logo-icon">
+          <i data-lucide="nfc"></i>
+        </div>
+        <div class="logo-text">
+          <h1>IoT Link</h1>
+          <span>Control de Acceso</span>
+        </div>
+      </div>
+      
+      <nav class="nav-menu">
+        <a href="#" class="nav-item active" data-tab="dashboard">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Panel de Control</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="users">
+          <i data-lucide="users"></i>
+          <span>Gestión de Usuarios</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="stats">
+          <i data-lucide="bar-chart-3"></i>
+          <span>Estadísticas</span>
+        </a>
+      </nav>
+      
+      <div class="server-status-card">
+        <div class="status-indicator-wrapper">
+          <span class="status-pulse online"></span>
+          <span class="status-text">Servidor Online</span>
+        </div>
+        <div class="server-ip-info">
+          <label>IP del Servidor:</label>
+          <span id="server-ip">Detectando...</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      
+      <!-- Top Navbar -->
+      <header class="top-navbar">
+        <div class="page-title">
+          <h2 id="current-tab-title">Panel de Control</h2>
+          <p id="current-tab-subtitle">Monitoreo en tiempo real de registros de asistencia</p>
+        </div>
+        
+        <div class="header-actions">
+          <div class="live-clock">
+            <i data-lucide="clock"></i>
+            <span id="clock-display">00:00:00</span>
+          </div>
+          
+          <button id="clear-logs-btn" class="btn btn-danger-outline">
+            <i data-lucide="trash-2"></i>
+            <span>Limpiar Historial</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- TAB: DASHBOARD -->
+      <section id="tab-dashboard" class="tab-content active">
+        
+        <!-- KPI Metrics Grid -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-icon color-primary">
+              <i data-lucide="user-check"></i>
+            </div>
+            <div class="kpi-info">
+              <span class="kpi-title">Asistencias Totales</span>
+              <h3 id="stat-total-scans">0</h3>
+            </div>
+          </div>
+          
+          <div class="kpi-card">
+            <div class="kpi-icon color-success">
+              <i data-lucide="cpu"></i>
+            </div>
+            <div class="kpi-info">
+              <span class="kpi-title">Equipos Activos</span>
+              <h3 id="stat-active-teams">0</h3>
+            </div>
+          </div>
+          
+          <div class="kpi-card">
+            <div class="kpi-icon color-warning">
+              <i data-lucide="alert-triangle"></i>
+            </div>
+            <div class="kpi-info">
+              <span class="kpi-title">UIDs Sin Registrar</span>
+              <h3 id="stat-unregistered">0</h3>
+            </div>
+          </div>
+          
+          <div class="kpi-card">
+            <div class="kpi-icon color-info">
+              <i data-lucide="fingerprint"></i>
+            </div>
+            <div class="kpi-info">
+              <span class="kpi-title">Último Acceso</span>
+              <h3 id="stat-last-access">-</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dashboard Layout: Live Feed & Table -->
+        <div class="dashboard-layout">
+          
+          <!-- Column Left: Real-Time Feed -->
+          <div class="panel live-feed-panel">
+            <div class="panel-header">
+              <div class="panel-title-wrapper">
+                <i data-lucide="activity" class="pulse-icon text-primary"></i>
+                <h3>Actividad en Tiempo Real</h3>
+              </div>
+              <span class="badge badge-primary">En Vivo</span>
+            </div>
+            <div class="panel-body">
+              <div id="live-feed-container" class="feed-container">
+                <!-- Live entries loaded dynamically here -->
+                <div class="feed-empty-state">
+                  <i data-lucide="wifi"></i>
+                  <p>Esperando lecturas de los ESP32...</p>
+                  <span>Los registros se mostrarán al instante</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column Right: Detailed Log Table -->
+          <div class="panel table-panel">
+            <div class="panel-header">
+              <div class="panel-title-wrapper">
+                <i data-lucide="list"></i>
+                <h3>Historial de Registros</h3>
+              </div>
+              
+              <div class="panel-actions">
+                <div class="search-box">
+                  <i data-lucide="search"></i>
+                  <input type="text" id="log-search" placeholder="Buscar por ID, nombre, equipo...">
+                </div>
+                
+                <button id="export-csv-btn" class="btn btn-secondary">
+                  <i data-lucide="download"></i>
+                  <span>Exportar CSV</span>
+                </button>
+              </div>
+            </div>
+            
+            <div class="panel-body">
+              <div class="table-wrapper">
+                <table id="attendance-table">
+                  <thead>
+                    <tr>
+                      <th>Hora</th>
+                      <th>ID / Tarjeta</th>
+                      <th>Nombre</th>
+                      <th>Rol</th>
+                      <th>Tipo</th>
+                      <th>Equipo / Dispositivo</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="attendance-tbody">
+                    <!-- Logs loaded dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- TAB: USERS -->
+      <section id="tab-users" class="tab-content">
+        <div class="users-layout">
+          
+          <!-- Column Left: Add/Edit User Form -->
+          <div class="panel form-panel">
+            <div class="panel-header">
+              <div class="panel-title-wrapper">
+                <i data-lucide="user-plus"></i>
+                <h3 id="form-user-title">Registrar Nuevo Usuario</h3>
+              </div>
+            </div>
+            <div class="panel-body">
+              <form id="user-form" class="g-form">
+                <div class="form-group">
+                  <label for="user-id">Código ID / UID Tarjeta</label>
+                  <div class="input-with-button">
+                    <input type="text" id="user-id" placeholder="Escribe el ID o escanea una tarjeta" required>
+                    <button type="button" id="btn-fill-last" class="btn btn-secondary-outline" title="Usar último ID detectado">
+                      <i data-lucide="copy"></i>
+                      <span>Último</span>
+                    </button>
+                  </div>
+                  <small>Puedes ingresar el ID manual del teclado o el Hexadecimal del RFID.</small>
+                </div>
+                
+                <div class="form-group">
+                  <label for="user-name">Nombre Completo</label>
+                  <input type="text" id="user-name" placeholder="Ej. Ana Belén Pérez" required>
+                </div>
+
+                <div class="form-group-row">
+                  <div class="form-group">
+                    <label for="user-team">Equipo / Grupo</label>
+                    <select id="user-team">
+                      <option value="Equipo 1">Equipo 1</option>
+                      <option value="Equipo 2">Equipo 2</option>
+                      <option value="Equipo 3">Equipo 3</option>
+                      <option value="Equipo 4">Equipo 4</option>
+                      <option value="Equipo 5">Equipo 5</option>
+                      <option value="Equipo 6">Equipo 6</option>
+                      <option value="Docentes">Docentes</option>
+                      <option value="Otros">Otros</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="user-role">Rol</label>
+                    <select id="user-role">
+                      <option value="Estudiante">Estudiante</option>
+                      <option value="Profesor">Profesor</option>
+                      <option value="Monitor">Monitor</option>
+                      <option value="Administrador">Administrador</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <button type="button" id="btn-reset-form" class="btn btn-secondary-outline">
+                    Cancelar
+                  </button>
+                  <button type="submit" class="btn btn-primary">
+                    <i data-lucide="save"></i>
+                    <span>Guardar Usuario</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Column Right: Users Directory -->
+          <div class="panel users-list-panel">
+            <div class="panel-header">
+              <div class="panel-title-wrapper">
+                <i data-lucide="contact-2"></i>
+                <h3>Directorio de Credenciales Registradas</h3>
+              </div>
+              <div class="search-box">
+                <i data-lucide="search"></i>
+                <input type="text" id="user-search" placeholder="Buscar usuario...">
+              </div>
+            </div>
+            
+            <div class="panel-body">
+              <div class="table-wrapper">
+                <table id="users-table">
+                  <thead>
+                    <tr>
+                      <th>Código / UID</th>
+                      <th>Nombre</th>
+                      <th>Equipo</th>
+                      <th>Rol</th>
+                      <th class="actions-col">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="users-tbody">
+                    <!-- Users loaded dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- TAB: STATISTICS -->
+      <section id="tab-stats" class="tab-content">
+        <div class="stats-layout">
+          
+          <div class="panel full-width-panel">
+            <div class="panel-header">
+              <div class="panel-title-wrapper">
+                <i data-lucide="bar-chart-2"></i>
+                <h3>Resumen y Estadísticas por Equipos</h3>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="stats-container">
+                <div class="stats-visual-cards">
+                  <!-- Generated dynamic progress indicators per team -->
+                  <div class="team-charts-wrapper" id="team-charts-container">
+                    <!-- Will be populated dynamically with team attendance bars -->
+                  </div>
+                </div>
+                
+                <div class="stats-distributions">
+                  <div class="dist-card">
+                    <h4>Distribución por Tipo de Entrada</h4>
+                    <div class="dist-visual">
+                      <div class="dist-bar-progress">
+                        <div id="bar-rfid" class="progress-segment type-rfid" style="width: 50%"></div>
+                        <div id="bar-keypad" class="progress-segment type-keypad" style="width: 50%"></div>
+                      </div>
+                      <div class="dist-labels">
+                        <span class="label-rfid"><span class="dot dot-rfid"></span> RFID: <strong id="pct-rfid">50%</strong></span>
+                        <span class="label-keypad"><span class="dot dot-keypad"></span> Teclado: <strong id="pct-keypad">50%</strong></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="dist-card">
+                    <h4>Distribución de Roles</h4>
+                    <div class="role-stat-grid" id="role-stat-container">
+                      <!-- Populated dynamically -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- JS Scripts -->
+  <script src="app.js"></script>
+</body>
+</html>
